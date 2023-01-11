@@ -1,0 +1,20 @@
+1. Install Python 3.11
+2. run these in admin cmd
+
+pip install dash
+pip install dash-extensions
+
+3. Now in this directory, run this in cmd
+
+python app.py
+
+4. Click on the URL given by the app in the cmd. 
+
+When the webapp opens, click anywhere in the window to give focus to it.
+
+The controls are simple, player 1 is on the left side, player 2 on the right side.
+Player 1's controls are 'a' , 's' and 'd' key
+Player 2's controls are '4', '5', and '6'. P2 can use numpad too.
+
+Both players have to press their key within 300ms of each other, and the app will show the winner. 
+Logs are also generated in the cmd.
