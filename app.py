@@ -3,226 +3,226 @@ from dash_extensions.enrich import DashProxy, html, Input, Output, State, dcc
 from dash.exceptions import PreventUpdate
 import time
 
-''' import random
-def gamewin(comp, you):
-    if comp == you:
-        return None
-    elif comp=="st":
-        if you=="sc":
-            return False
-        elif you=="p":
-            return True
-        elif comp =="sc":
-            if you=="p":
-                return False
-            elif you =="st":
-                return True
-        elif comp =="p":
-            if you=="st":
-                return False
-            elif you =="sc":
-                return True
-print("Comp Turn: stone(st) scissor(sc)or paper(p)?")
-randNo=random.randint(1,3)
-if randNo ==1:
-    comp="st"
-elif randNo==2:
-    comp="sc"
-elif randNo==3:
-    comp="p"
-you = input("Your Turn: stone(st) scissor(sc) or paper(p)?")
-a = gamewin(comp,you)
-print(f"Computer Choose  {comp}")
-print(f"You Choose  {you}")
-if a==None:
-    print("The game is a tie!")
-elif a :
-    print("You win!")
-else:
-    print("You lose!") '''
-
-
+# Create the main Dash app instance
 app = DashProxy(__name__)
 
-
-def generate_card(src: str, borderColor: str, rotation: str):
-    return html.Div(style={'width': '125px', 'height': '207px', 'border': '1px', 'border-style': 'solid',
-                           'border-color': borderColor, 'border-radius': '11px', 'display': 'flex', 'justify-content': 'center', 'backgroundColor': 'white',
-                           'rotate': rotation,
-
-                           },
-                    children=html.Img(
-                        src=src, style={'width': '60%', 'height': 'auto'})
-                    )
-
-
-# a&4 is rock, s&5 is paper, d&6 is scissor.
-rps_values = {
-    'a': 1,
-    's': 2,
-    'd': 3,
-    '4': 1,
-    '5': 2,
-    '6': 3
+# --- Constants ---
+# Map keyboard inputs to game values (1: Rock, 2: Paper, 3: Scissors)
+# Player 1: 'a', 's', 'd'
+# Player 2: '4', '5', '6'
+RPS_VALUES = {
+    'a': 1, 's': 2, 'd': 3,  # Player 1
+    '4': 1, '5': 2, '6': 3   # Player 2
 }
 
-rps_assets = {
+# Map game values to their corresponding image assets
+RPS_ASSETS = {
     1: 'assets/rock.svg',
     2: 'assets/paper.svg',
     3: 'assets/scissor.svg',
 }
 
+# --- Reusable UI Components ---
+
+def generate_card(src: str, border_color: str, rotation: str):
+    """Creates a UI card element to display a rock, paper, or scissors image."""
+    return html.Div(style={'width': '125px', 'height': '207px', 'border': '1px', 'border-style': 'solid',
+                           'border-color': border_color, 'border-radius': '11px', 'display': 'flex',
+                           'justify-content': 'center', 'backgroundColor': 'white', 'rotate': rotation},
+                    children=html.Img(src=src, style={'width': '60%', 'height': 'auto'}))
+
+# --- Game Logic ---
+
+def calc_winner(p1_choice: int, p2_choice: int):
+    """
+    Determines the winner of a Rock-Paper-Scissors round.
+    - 1: Rock, 2: Paper, 3: Scissors
+    Returns 'p1', 'p2', or 'draw'.
+    """
+    if p1_choice == p2_choice:
+        return "draw"
+
+    winning_combinations = {
+        (1, 3),  # Rock (1) beats Scissors (3)
+        (2, 1),  # Paper (2) beats Rock (1)
+        (3, 2),  # Scissors (3) beats Paper (2)
+    }
+
+    if (p1_choice, p2_choice) in winning_combinations:
+        return "p1"
+    else:
+        return "p2"
+
+# --- Callbacks ---
 
 @app.callback(
     Output("player_state", "data"),
     Input("main_elem", "event"),
-    Input("main_elem", "n_events"),
     State("player_state", "data")
 )
-def update_datastore(e, ne,  player_state):
-    if e is None:
-        raise PreventUpdate()
-    key = str(e['key']).lower()
+def update_player_state_on_keypress(event, player_state):
+    """
+    Listens for keyboard events and updates the shared player state.
+    This callback captures key presses for both players, records their choice
+    and the timestamp of the input.
+    """
+    if event is None:
+        raise PreventUpdate
 
+    key = str(event['key']).lower()
+
+    # Initialize state if it's the first run
     player_state = player_state or {
-        'p1_input': None, 'p2_input': None, 'p1_timestamp': None, 'p2_timestamp': None, }
+        'p1_input': None, 'p2_input': None,
+        'p1_timestamp': None, 'p2_timestamp': None,
+    }
 
-    now = time.time_ns() / 1000000  # Time in milliseconds
-    if key == 'a' or key == 's' or key == 'd':
-        print(e)
-        player_state['p1_input'] = rps_values[key]
-        player_state['p1_timestamp'] = now
+    # Ignore keys that are not part of the game controls
+    if key not in RPS_VALUES:
+        raise PreventUpdate
 
-    if key == '4' or key == '5' or key == '6':
-        print(e)
-        player_state['p2_input'] = rps_values[key]
-        player_state['p2_timestamp'] = now
+    now_ms = time.time_ns() / 1_000_000  # Time in milliseconds
+
+    # Update state for the corresponding player
+    if key in ['a', 's', 'd']:
+        player_state['p1_input'] = RPS_VALUES[key]
+        player_state['p1_timestamp'] = now_ms
+    elif key in ['4', '5', '6']:
+        player_state['p2_input'] = RPS_VALUES[key]
+        player_state['p2_timestamp'] = now_ms
 
     return player_state
 
 
-@app.callback(Output("score_store", "data"),
-              Output("result-p1", "children"),
-              Output("result-p2", "children"),
-              Input("player_state", "modified_timestamp"),
-              State("player_state", "data"),
-              State("score_store", "data")
-              )
-def on_player_states(ts, player_state, data):
-
+@app.callback(
+    Output("score_store", "data"),
+    Output("result-p1", "children"),
+    Output("result-p2", "children"),
+    Input("player_state", "modified_timestamp"),
+    State("player_state", "data"),
+    State("score_store", "data")
+)
+def handle_game_round(ts, player_state, score_data):
+    """
+    This is the core game logic callback. It triggers whenever the player state changes.
+    It checks if both players have made a move within the time limit,
+    calculates the winner, updates scores, and displays the results.
+    """
     if ts is None:
         raise PreventUpdate
-    data = data or {'score_p1': 0, 'score_p2': 0}
+
+    # Initialize data stores on first run
+    score_data = score_data or {'score_p1': 0, 'score_p2': 0}
     player_state = player_state or {
-        'p1_input': None, 'p2_input': None, 'p1_timestamp': None, 'p2_timestamp': None, }
+        'p1_input': None, 'p2_input': None,
+        'p1_timestamp': None, 'p2_timestamp': None,
+    }
+
+    p1_input = player_state.get('p1_input')
+    p2_input = player_state.get('p2_input')
+    p1_time = player_state.get('p1_timestamp')
+    p2_time = player_state.get('p2_timestamp')
 
     winner = None
-    # 300ms max diff. between both player inputs
-    if (player_state['p1_input'] != None and player_state['p2_input'] != None and player_state['p1_timestamp'] != None and player_state['p2_timestamp'] != None):
-        if (abs(player_state['p1_timestamp']-player_state['p2_timestamp']) <= 300):
-            print("Calculating winner")
-            winner = calc_winner(
-                player_state['p1_input'], player_state['p2_input'])
+    # A round can only be decided if both players have made an input
+    if all([p1_input, p2_input, p1_time, p2_time]):
+        # Check if inputs were made within the 300ms time window
+        if abs(p1_time - p2_time) <= 300:
+            winner = calc_winner(p1_input, p2_input)
 
-            print("{} won!".format(winner if winner != "draw" else "Nobody"))
+            # Update scores based on the winner
+            if winner == "p1":
+                score_data['score_p1'] += 1
+            elif winner == "p2":
+                score_data['score_p2'] += 1
+            # On draw, scores do not change
 
-            if (winner == "p1"):
-                data['score_p1'] = data['score_p1'] + 1
-            elif (winner == "p2"):
-                data['score_p2'] = data['score_p2'] + 1
-            # else draw, no one won
-    cardp1 = html.Div()
-    cardp2 = html.Div()
-    
-    if (winner == "p1"):
-        cardp1 = generate_card(rps_assets[player_state['p1_input']], "#63F31D",
-                               "0deg") if player_state['p1_input'] != None else html.Div()
-        cardp2 = generate_card(rps_assets[player_state['p2_input']], "#707070",
-                               "0deg") if player_state['p2_input'] != None else html.Div()
-    elif (winner == "p2"):
-        cardp1 = generate_card(rps_assets[player_state['p1_input']], "#707070",
-                               "0deg") if player_state['p1_input'] != None else html.Div()
-        cardp2 = generate_card(rps_assets[player_state['p2_input']], "#63F31D",
-                               "0deg") if player_state['p2_input'] != None else html.Div()
-    else:
-        cardp1 = generate_card(rps_assets[player_state['p1_input']], "#707070",
-                               "0deg") if player_state['p1_input'] != None else html.Div()
-        cardp2 = generate_card(rps_assets[player_state['p2_input']], "#707070",
-                               "0deg") if player_state['p2_input'] != None else html.Div()
+    # --- UI Updates ---
+    # Default border color for cards
+    p1_border_color = "#707070"
+    p2_border_color = "#707070"
 
-    return data, cardp1, cardp2
+    # Highlight winner's card in green
+    if winner == "p1":
+        p1_border_color = "#63F31D"  # Green
+    elif winner == "p2":
+        p2_border_color = "#63F31D"  # Green
+
+    # Generate the cards to display the players' choices
+    card_p1 = html.Div()
+    card_p2 = html.Div()
+    if p1_input:
+        card_p1 = generate_card(RPS_ASSETS[p1_input], p1_border_color, "0deg")
+    if p2_input:
+        card_p2 = generate_card(RPS_ASSETS[p2_input], p2_border_color, "0deg")
+
+    return score_data, card_p1, card_p2
 
 
-@app.callback(Output(component_id='p1_score', component_property='children'),
-              Output(component_id='p2_score', component_property='children'),
-              Input("score_store", "modified_timestamp"),
-              State("score_store", "data")
-              )
-def on_data(ts, data):
-
+@app.callback(
+    Output('p1_score', 'children'),
+    Output('p2_score', 'children'),
+    Input("score_store", "modified_timestamp"),
+    State("score_store", "data")
+)
+def update_score_display(ts, score_data):
+    """Updates the score displays on the screen when the score data changes."""
     if ts is None:
         raise PreventUpdate
-    data = data or {'score_p1': 0, 'score_p2': 0}
-
-    return data.get('score_p1', 0), data.get('score_p2', 0)
-
-
-# logic from https://eduherminio.github.io/blog/rock-paper-scissors/
-def calc_winner(p1: int, p2: int):
-
-    inps = {p1, p2}
-
-    winner = abs(p2-p1)
-    if winner == 0:
-        return "draw"
-    elif winner == 1:
-        inpsInv = {p1: "p1", p2: "p2"}
-        return inpsInv[max(inps)]
-    else:
-        inpsInv = {p1: "p1", p2: "p2"}
-        return inpsInv[min(inps)]
+    score_data = score_data or {'score_p1': 0, 'score_p2': 0}
+    return score_data.get('score_p1', 0), score_data.get('score_p2', 0)
 
 
-app.layout = EventListener(html.Div(tabIndex="-1", children=[
-    html.Div(style={'width': '100%', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'z-index': '2'},
-             children=[html.Img(style={'transform': 'scaleX(-1)', 'margin': '0px'},
-                                src='assets/page_sep.svg'),
-                       html.Img(src='assets/page_sep.svg',
-                                style={'margin-left': '-2px'}),
+# --- App Layout ---
 
-                       ],
-             ),
-    html.Div(style={'z-index': '3', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'width': '100%', 'height': '100%', 'align-items': 'center'},
-             children=[html.Div(style={'margin-right': '-30px', 'position': 'relative', 'top': '20px'},
-                                children=generate_card('assets/rock.svg', '#F31D1D', '-30deg')),
-             html.Div(style={'z-index': '4'}, children=generate_card(
-                 'assets/paper.svg', '#1DD6F3', '0deg')),
-        html.Div(style={'margin-left': '-30px', 'position': 'relative', 'top': '20px'}, children=generate_card(
-            'assets/scissor.svg', '#5C10F8', '30deg')),
-    ],),
-    html.Div(style={'z-index': '3', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'width': '100%', 'height': '100%', 'align-items': 'center'},
-             children=[
-        html.Div(id="result-p1",
-                 style={'position': 'fixed', 'left': '80px'}, ),
-             html.Div(id="result-p2",
-                      style={'position': 'fixed', 'right': '80px'},),
-             ],),
-    dcc.Store('score_store'),
-    dcc.Store('player_state'),
-    html.Div('0', id='p1_score', className='score_text',
-             style={'bottom': '20px', 'left': '30px'},),
-    html.Div('0', id='p2_score', className='score_text',
-             style={'bottom': '20px', 'right': '30px'}),
-    html.Div(style={'width': '100%', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'z-index': '3', 'bottom': '0px'},
-             children=[html.Img(src='assets/keyboard.svg',
-                                style={'width': '20%', 'height': 'auto'}), ],
-             ),
-]),
-    events=[{"event": "keyup", "props": ["key", "repeat"]}],
+app.layout = EventListener(
+    html.Div(tabIndex="-1", children=[
+        # Data stores for game state and scores
+        dcc.Store('player_state'),
+        dcc.Store('score_store'),
 
+        # Top decorative separator
+        html.Div(
+            style={'width': '100%', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'z-index': '2'},
+            children=[
+                html.Img(src='assets/page_sep.svg', style={'transform': 'scaleX(-1)', 'margin': '0px'}),
+                html.Img(src='assets/page_sep.svg', style={'margin-left': '-2px'}),
+            ]
+        ),
+
+        # Center static background cards
+        html.Div(
+            style={'z-index': '3', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'width': '100%', 'height': '100%', 'align-items': 'center'},
+            children=[
+                html.Div(style={'margin-right': '-30px', 'position': 'relative', 'top': '20px'}, children=generate_card('assets/rock.svg', '#F31D1D', '-30deg')),
+                html.Div(style={'z-index': '4'}, children=generate_card('assets/paper.svg', '#1DD6F3', '0deg')),
+                html.Div(style={'margin-left': '-30px', 'position': 'relative', 'top': '20px'}, children=generate_card('assets/scissor.svg', '#5C10F8', '30deg')),
+            ]
+        ),
+
+        # Area where player choices are displayed after a round
+        html.Div(
+            style={'z-index': '3', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'width': '100%', 'height': '100%', 'align-items': 'center'},
+            children=[
+                html.Div(id="result-p1", style={'position': 'fixed', 'left': '80px'}),
+                html.Div(id="result-p2", style={'position': 'fixed', 'right': '80px'}),
+            ]
+        ),
+
+        # Score displays
+        html.Div('0', id='p1_score', className='score_text', style={'bottom': '20px', 'left': '30px'}),
+        html.Div('0', id='p2_score', className='score_text', style={'bottom': '20px', 'right': '30px'}),
+
+        # Bottom keyboard controls image
+        html.Div(
+            style={'width': '100%', 'display': 'flex', 'position': 'fixed', 'justify-content': 'center', 'z-index': '3', 'bottom': '0px'},
+            children=[html.Img(src='assets/keyboard.svg', style={'width': '20%', 'height': 'auto'})]
+        ),
+    ]),
+    # Listen for 'keyup' events on the main div
     id="main_elem",
-    logging=False,
-
+    events=[{"event": "keyup", "props": ["key", "repeat"]}],
+    logging=False
 )
 
 if __name__ == '__main__':
