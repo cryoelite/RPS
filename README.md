@@ -1,4 +1,5 @@
 # Real-Time Rock-Paper-Scissors Game
+<img width="2000" height="1125" alt="image" src="https://github.com/user-attachments/assets/55435092-bd42-417f-a1aa-65dd82befc4a" />
 
 A simple, two-player, real-time Rock-Paper-Scissors game built with Python and the Dash framework. This browser-based game captures keyboard inputs from two players and determines the winner of each round in real-time.
 
